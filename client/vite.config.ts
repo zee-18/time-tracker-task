@@ -8,20 +8,6 @@ const projectRoot = path.resolve(
   "..",
 );
 
-function readServerPort(raw: string | undefined): number {
-  if (raw === undefined || raw.trim() === "") {
-    return 3001;
-  }
-
-  const port = Number(raw);
-
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-    return 3001;
-  }
-
-  return port;
-}
-
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, projectRoot, "");
 
