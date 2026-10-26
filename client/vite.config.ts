@@ -24,14 +24,13 @@ function readServerPort(raw: string | undefined): number {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, projectRoot, "");
-  const port = readServerPort(env.PORT);
 
   return {
     plugins: [react()],
     server: {
       proxy: {
         "/api": {
-          target: `http://localhost:${port}`,
+          target: env.VITE_API_TARGET || 'http://localhost:3001',
           changeOrigin: true,
         },
       },
