@@ -1,1 +1,1 @@
-{ "rewrites": [{ "source": "/api/:path*", "destination": "https://time-trackerserver-production.up.railway.app/:path" }] }
+{ "rewrites": [{ "source": "/api/:path*", "destination": "https://time-trackerserver-production.up.railway.app/api/:path*" }] }
