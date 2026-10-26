@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import log from "../src/logger.js";
 
 export class HttpError extends Error {
   readonly status: number;
@@ -41,7 +42,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function errorHandler(
   error: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): void {
@@ -49,6 +50,15 @@ export function errorHandler(
     next(error);
     return;
   }
+
+  const errorMessage =
+    error instanceof Error ? error.message : "Unknown error";
+
+  log("error", "request failed", {
+    method: req.method,
+    path: req.path,
+    message: errorMessage,
+  });
 
   if (error instanceof HttpError) {
     const body: Record<string, unknown> = {
@@ -80,10 +90,6 @@ export function errorHandler(
     return;
   }
 
-  console.error(
-    "Unhandled server error:",
-    error instanceof Error ? error.message : "Unknown error",
-  );
   res.status(500).json({
     message: "Something went wrong. Please try again.",
     code: "INTERNAL_ERROR",

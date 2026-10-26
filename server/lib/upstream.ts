@@ -1,5 +1,6 @@
 import { HttpError, rateLimitError } from "../middleware/errors.js";
 import { upstreamQueue } from "../middleware/rateQueue.js";
+import log from "../src/logger.js";
 
 const DEFAULT_BASE_URL =
   "https://interview-api.memtime-demo.deno.net/api/v1";
@@ -163,8 +164,15 @@ async function performRequest(request: UpstreamRequest): Promise<unknown> {
 
   const controller = new AbortController();
   let timedOut = false;
+  const startedAt = Date.now();
   const timeout = setTimeout(() => {
     timedOut = true;
+    log("warn", "upstream timeout", {
+      method: request.method,
+      path: request.path,
+      status: 504,
+      durationMs: getTimeoutMs(),
+    });
     controller.abort();
   }, getTimeoutMs());
 
@@ -186,23 +194,57 @@ async function performRequest(request: UpstreamRequest): Promise<unknown> {
       signal: controller.signal,
     });
 
-    if (response.status === 400) {
-      throw badRequestError();
-    }
-
-    if (response.status === 404) {
-      throw notFoundError(await response.text());
-    }
+    const durationMs = Date.now() - startedAt;
 
     if (response.status === 429) {
       const retryAfterSeconds =
         parseRetryAfter(response.headers.get("retry-after")) ?? 60;
+      log("warn", "upstream 429", {
+        method: request.method,
+        path: request.path,
+        status: response.status,
+        durationMs,
+        retryAfterSeconds,
+      });
       throw rateLimitError(retryAfterSeconds);
     }
 
+    if (response.status === 400) {
+      log("warn", "upstream 400", {
+        method: request.method,
+        path: request.path,
+        status: response.status,
+        durationMs,
+      });
+      throw badRequestError();
+    }
+
+    if (response.status === 404) {
+      log("warn", "upstream 404", {
+        method: request.method,
+        path: request.path,
+        status: response.status,
+        durationMs,
+      });
+      throw notFoundError(await response.text());
+    }
+
     if (!response.ok) {
+      log("warn", "upstream failed", {
+        method: request.method,
+        path: request.path,
+        status: response.status,
+        durationMs,
+      });
       throw upstreamError();
     }
+
+    log("info", "upstream request completed", {
+      method: request.method,
+      path: request.path,
+      status: response.status,
+      durationMs,
+    });
 
     return await parseResponseBody(response);
   } catch (error) {
@@ -211,9 +253,21 @@ async function performRequest(request: UpstreamRequest): Promise<unknown> {
     }
 
     if (timedOut) {
+      log("error", "upstream timeout error", {
+        method: request.method,
+        path: request.path,
+        status: 504,
+        durationMs: Date.now() - startedAt,
+      });
       throw timeoutError();
     }
 
+    log("error", "upstream request failed", {
+      method: request.method,
+      path: request.path,
+      status: 502,
+      durationMs: Date.now() - startedAt,
+    });
     throw upstreamError();
   } finally {
     clearTimeout(timeout);

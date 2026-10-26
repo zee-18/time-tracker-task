@@ -9,6 +9,7 @@ import projectsRouter from "./routes/projects.js";
 import tasksRouter from "./routes/tasks.js";
 import { errorHandler, notFoundHandler } from "./middleware/errors.js";
 import { assertUpstreamConfigured } from "./lib/upstream.js";
+import log from "./src/logger.js";
 
 export const app = express();
 
@@ -20,10 +21,17 @@ app.use((req, res, next) => {
   const startedAt = performance.now();
 
   res.on("finish", () => {
+    if (req.path === "/api/health") {
+      return;
+    }
+
     const durationMs = Math.round(performance.now() - startedAt);
-    console.log(
-      `${req.method} ${req.path} ${res.statusCode} ${durationMs}ms`,
-    );
+    log("info", "request completed", {
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      durationMs,
+    });
   });
 
   next();
@@ -94,7 +102,10 @@ function startServer(): void {
 
   const port = readPort();
   const server = app.listen(port, () => {
-    console.log(`Server listening on http://localhost:${port}`);
+    log("info", "server started", {
+      port,
+      nodeEnv: process.env.NODE_ENV ?? "development",
+    });
   });
 
   setupShutdown(server);

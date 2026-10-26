@@ -1,4 +1,5 @@
 import { rateLimitError } from "../middleware/errors.js";
+import log from "../src/logger.js";
 
 type QueueItem = {
   run: () => Promise<unknown>;
@@ -38,13 +39,29 @@ export class RateQueue {
     this.processQueue(now);
 
     if (this.queue.length >= this.maxQueue) {
+      log("warn", "upstream queue full", {
+        queueLength: this.queue.length,
+        maxQueue: this.maxQueue,
+      });
       return Promise.reject(rateLimitError(this.secondsUntilSlot(now)));
     }
 
     const waitMs = this.estimateWaitMs(now);
 
     if (waitMs > this.maxWaitMs) {
+      log("warn", "upstream request queued beyond max wait", {
+        waitMs,
+        queueLength: this.queue.length,
+        maxQueue: this.maxQueue,
+      });
       return Promise.reject(rateLimitError(waitMs / 1000));
+    }
+
+    if (waitMs > 0) {
+      log("warn", "upstream request waiting in queue", {
+        waitMs,
+        queueLength: this.queue.length,
+      });
     }
 
     if (this.queue.length === 0 && this.timestamps.length < this.limit) {
